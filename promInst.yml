@@ -1,0 +1,60 @@
+---
+- hosts: ec2-65-1-134-67.ap-south-1.compute.amazonaws.com
+  become: yes
+  connection: ssh
+  remote_user: ec2-user
+  gather_facts: yes
+  become_method: sudo
+  become_user: root
+  vars:
+    ansible_ssh_private_key_file: "/home/manojk/new.pem"
+  tasks:
+  - name: Download the source using curl, untar it, and rename the extracted folder to prometheus-files.
+    shell: |
+      curl -LO https://github.com/prometheus/prometheus/releases/download/v2.22.0/prometheus-2.22.0.linux-amd64.tar.gz
+      tar -xvf prometheus-2.22.0.linux-amd64.tar.gz
+      mv prometheus-2.22.0.linux-amd64 prometheus-files
+  
+  - name: Create a Prometheus user, required directories, and make Prometheus the user as the owner of those directories.
+    shell: |
+      useradd -m -s /bin/false prometheus
+      mkdir /etc/prometheus
+      mkdir /var/lib/prometheus
+      chown prometheus /var/lib/prometheus
+
+  - name: Copy prometheus and promtool binary from prometheus-files folder to /usr/local/bin and change the ownership to prometheus user.
+    shell: |
+      cp prometheus-files/prometheus /usr/local/bin/
+      cp prometheus-files/promtool /usr/local/bin/
+      chown prometheus /usr/local/bin/prometheus
+      chown prometheus /usr/local/bin/promtool
+
+  - name: Move the consoles and console_libraries directories from prometheus-files to /etc/prometheus folder and change the ownership to prometheus user.
+    shell: |
+      cp -r prometheus-files/consoles /etc/prometheus
+      cp -r prometheus-files/console_libraries /etc/prometheus
+      chown -R prometheus /etc/prometheus/consoles
+      chown -R prometheus /etc/prometheus/console_libraries
+
+  - name: Setup Prometheus Configuration
+    shell: |
+      cp -r /home/ec2-user/prometheus.yml /etc/prometheus/prometheus.yml
+      chown prometheus /etc/prometheus/prometheus.yml
+
+  - name: Setup Prometheus Service File
+    shell: |
+      cp -r /home/ec2-user/prometheus.service /etc/systemd/system/prometheus.service
+      chown prometheus /etc/systemd/system/prometheus.service
+
+  - name: add firewall access
+    shell: |
+      firewall-cmd --add-port=9090/tcp --permanent
+      firewall-cmd --reload
+
+  - name: Reload the systemd service to register the prometheus service and start the prometheus service
+    shell: |
+      systemctl enable prometheus
+      systemctl daemon-reload
+      systemctl start prometheus
+
+
