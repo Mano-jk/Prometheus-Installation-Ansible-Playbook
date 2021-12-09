@@ -1,0 +1,5 @@
+#Commands to install Firewalld to expose prometheus port to public
+yum install firewalld
+systemctl unmask firewalld
+systemctl enable firewalld
+systemctl start firewalld
